@@ -32,7 +32,7 @@ ao_info = deviceInfo.get_ao_info()
 ao_range = ao_info.supported_ranges[0]
 ai_info = deviceInfo.get_ai_info()
 ai_range = ai_info.supported_ranges[0]
-channel = 0
+channel, low_chan, high_chan = 0, 0, 0 # Channel defining for qSweep()
 
 # Defining Sine Wave Generation
 def sine(numPoints):
