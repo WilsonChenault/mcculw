@@ -71,7 +71,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
     sineOutput.extend(sineExtend) # Copying the sine output over the course of the buffer
     for i in range(len(sineOutput)):
         outputArray[i] = sineOutput[i]
-    log.info(outputArray)
+    log.info(outputArray) # DEBUG
     
     # Frequencies that are specified to be tested
     frequencies = []
@@ -83,13 +83,14 @@ def qSweep(minFreq, maxFreq, stepFreq):
     # Outputs a frequency (numPoints/rate) to the coil. Reads back a single input (resonance).
     inData = [] # Defining measured data to append
     print('Waiting for scan...')
+    log.info('Scan started at %s' %s time)
     for freq in frequencies:
         # Define rate. This is our way of adjusting the frequency outputted
         rate = freq * 10 # * 10 because 10 points is one cycle
         inRate = 10000 # Input sample rate. Set value as to not skew data
         inputHold = [] # Input samples data. Hold takes in the buffer, writes to data, and then gets rewritten.
         inputData = []
-        log.info(rate)
+        log.info(rate) # DEBUG
         # Run input using new rate and values within memory buffer. Outputs a sine wave of specified frequency to the coil.
         try:
             ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND)
@@ -110,8 +111,8 @@ def qSweep(minFreq, maxFreq, stepFreq):
                     for i in range(inputPoints):
                         inputData.append(inputArray[i])
                     inData.append(inputData)
-                    log.info(inputArray)
-                    log.info(inputData)
+                    log.info(inputArray) # DEBUG
+                    log.info(inputData) # DEBUG
         except ULError as e:
             print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
             log.error('ERROR: ' + '\n' + "A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
@@ -123,7 +124,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
         while outStatus != outStatus.IDLE:
             sleep(0.1)
             outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
-            log.info(outStatus)
+            log.info(outStatus) # DEBUG
         
     # Success
     print('\n' + 'Frequencies: ' + str(frequencies))
