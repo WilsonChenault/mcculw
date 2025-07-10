@@ -6,6 +6,7 @@ Purpose: Attempting to run 100 cycles of qsweepTest1
 
 import traceback
 import numpy as np
+import logging
 
 from time import sleep
 from time import time
@@ -15,6 +16,18 @@ from mcculw import ul
 from mcculw.device_info import DaqDeviceInfo
 from mcculw.enums import ScanOptions, FunctionType, Status
 from mcculw.ul import ULError
+
+# Logging function
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename = 'console.log',
+    level = logging.INFO,
+    format = '%(asctime)s - %(levelname)s - %(message)s - %(lineno)d'
+    handlers = logging.StreamHandler()
+)
+logging.info("Informational: ")
+logging.warning("Warning: ")
+logging.error("Error: ")
 
 # Board/Device
 use_device_detection = True
