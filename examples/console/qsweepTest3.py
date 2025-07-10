@@ -83,7 +83,8 @@ def qSweep(minFreq, maxFreq, stepFreq):
     # Outputs a frequency (numPoints/rate) to the coil. Reads back a single input (resonance).
     inData = [] # Defining measured data to append
     print('Waiting for scan...')
-    log.info('Scan started at %s' %s time)
+    time = time()
+    log.info('Scan started at ' + time)
     for freq in frequencies:
         # Define rate. This is our way of adjusting the frequency outputted
         rate = freq * 10 # * 10 because 10 points is one cycle
