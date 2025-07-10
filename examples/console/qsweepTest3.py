@@ -32,6 +32,12 @@ ai_info = deviceInfo.get_ai_info()
 ai_range = ai_info.supported_ranges[0]
 channel = 0
 
+# Defining Sine Wave Generation
+def sine(numPoints):
+    global sineOutput
+    xData = np.linspace(0, 2 * np.pi, numPoints)
+    sineOutput = np.sin(xData)
+
 # Defining QSweep function
 def qSweep(minFreq, maxFreq, stepFreq):
     # Frequencies that are specified to be tested
@@ -41,42 +47,25 @@ def qSweep(minFreq, maxFreq, stepFreq):
         minFreq = minFreq + stepFreq
     
     # Main body loop
-    # Creates an output value, sends it through, reads an input, and then continues the loop once and input has been read
+    # Outputs a frequency (numPoints/rate) to the coil. Reads back a single input (resonance).
+    inData = [] # Defining measured data to append
     for freq in frequencies:
-        start = time()
-        timePerCycle = 1/freq
-        duration = num_cycles * timePerCycle
-        inData = []
-        try:
-            ul.a_out(board_num, channel, ao_range, freq)
-        except ULError as e:
-            # Print error
-            print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
-            traceback.print_exc()
-            input("Press enter to close script...")
-        # Printing output value (mostly debug reasons)
-        print('Output value[' + str(frequencies.index(freq)) + ']: ' + str(freq))
+        # Define rate. This is our way of adjusting the frequency outputted
+        rate = len(sineOutput)/freq
+        # Run input using new rate and values within memory buffer. Outputs a sine wave of specified frequency to the coil.
+        ul.a_out_scan(board_num, low_chan, high_chan, ao_range, rate, memhandle, options=NONE)
         
-        # Reading the input channel
-        while time() - start < duration:
-            try:
-                inValue = ul.a_in(board_num, channel, ai_range)
-                #print('Input Value[' + str(frequencies.index(freq)) + ']: ' + str(inValue))
-                #print('\n')
-                inData.append(inValue)
-            except ULError as e:
-                # Print error
-                print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
-                traceback.print_exc()
-                input("Press enter to close script...")
-        print('Input Data:')
-        print(inData) # DEBUG
-        print('List Average: ' + str(np.average(inData)))
-        print('\n')
+
+        # Reading input
+        inValue = ul.a_in(board_num, channel, ai_range)
+        inData.append(inValue)
         
     # Success
+    print('\n' + 'Frequencies: ' + str(frequencies))
+    print('Resonance Data: ' + str(inData) + '\n')
     print('Test successful! Press enter to close the script.')
     input()
 
 if __name__ == '__main__':
+    sine(10)
     qSweep(50000, 70000, 700)
