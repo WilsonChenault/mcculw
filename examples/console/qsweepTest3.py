@@ -4,14 +4,16 @@ File: qsweepTest3.py
 Purpose: Attempting to run 100 cycles of qsweepTest1
 """
 
-from time import sleep
-from time import time
 import traceback
 import numpy as np
 
+from time import sleep
+from time import time
+from ctypes import cast, POINTER, c_ushort
+
 from mcculw import ul
 from mcculw.device_info import DaqDeviceInfo
-from mcculw.enums import ULRange
+from mcculw.enums import ScanOptions, FunctionType, Status
 from mcculw.ul import ULError
 
 # Board/Device
@@ -40,6 +42,12 @@ def sine(numPoints):
 
 # Defining QSweep function
 def qSweep(minFreq, maxFreq, stepFreq):
+    # Handling memory buffer
+    totalPoints = 100 # Total number of points that get scanned. 10 cycles is always 100 points with a
+                      # sine(numPoints) of 10.
+    memhandle = ul.win_buf_alloc(totalPoints)
+    ctypes_array = cast(memhandle, POINTER(c_ushort))
+    
     # Frequencies that are specified to be tested
     frequencies = []
     while maxFreq >= minFreq:
@@ -53,9 +61,16 @@ def qSweep(minFreq, maxFreq, stepFreq):
         # Define rate. This is our way of adjusting the frequency outputted
         rate = len(sineOutput)/freq
         # Run input using new rate and values within memory buffer. Outputs a sine wave of specified frequency to the coil.
-        ul.a_out_scan(board_num, low_chan, high_chan, ao_range, rate, memhandle, options=NONE)
+        ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, memhandle, ScanOptions.BACKGROUND)
         
-
+        # Slow down mildly to prevent CPU overflow
+        print('Waiting for scan...')
+        status = Status.RUNNING
+        while status != status.IDLE:
+            print('.')
+            sleep(0.1)
+            status, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
+        
         # Reading input
         inValue = ul.a_in(board_num, channel, ai_range)
         inData.append(inValue)
