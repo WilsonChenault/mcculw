@@ -14,7 +14,7 @@ from ctypes import cast, POINTER, c_ushort
 
 from mcculw import ul
 from mcculw.device_info import DaqDeviceInfo
-from mcculw.enums import ScanOptions, FunctionType, Status
+from mcculw.enums import ScanOptions, FunctionType, Status, TrigType
 from mcculw.ul import ULError
 
 # Logging function
@@ -55,6 +55,7 @@ def sine(numPoints):
         valueHold = ul.from_eng_units(board_num, ao_range, i)
         sineOutput.append(valueHold)
     log.info(sineOutput) # DEBUG
+    log.info(ul.from_eng_units(board_num, ao_range, 1))
 
 # Defining QSweep function
 def qSweep(minFreq, maxFreq, stepFreq):
@@ -71,7 +72,11 @@ def qSweep(minFreq, maxFreq, stepFreq):
     sineOutput.extend(sineExtend) # Copying the sine output over the course of the buffer
     for i in range(len(sineOutput)):
         outputArray[i] = sineOutput[i]
-    log.info(outputArray) # DEBUG
+    log.info(outputArray)
+    
+    # Setting trigger for simultaneous activation of scans
+    ul.set_trigger(board_num, TrigType.TRIG_HIGH, 0, 36045)
+    trig_channel = 3
     
     # Frequencies that are specified to be tested
     frequencies = []
@@ -83,18 +88,16 @@ def qSweep(minFreq, maxFreq, stepFreq):
     # Outputs a frequency (numPoints/rate) to the coil. Reads back a single input (resonance).
     inData = [] # Defining measured data to append
     print('Waiting for scan...')
-    time = time()
-    log.info('Scan started at ' + time)
     for freq in frequencies:
         # Define rate. This is our way of adjusting the frequency outputted
         rate = freq * 10 # * 10 because 10 points is one cycle
         inRate = 10000 # Input sample rate. Set value as to not skew data
         inputHold = [] # Input samples data. Hold takes in the buffer, writes to data, and then gets rewritten.
         inputData = []
-        log.info(rate) # DEBUG
+        log.info(rate)
         # Run input using new rate and values within memory buffer. Outputs a sine wave of specified frequency to the coil.
         try:
-            ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND)
+            ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND.EXTTRIGGER)
         except ULError as e:
             print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
             log.error('ERROR: ' + '\n' + "A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
@@ -103,7 +106,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
         
         # Reading input. Using the scan feature to create an array for each sample set of data.
         try:
-            ul.a_in_scan(board_num, low_chan, high_chan, inputPoints, inRate, ai_range, inputBuffer, ScanOptions.BACKGROUND)
+            ul.a_in_scan(board_num, low_chan, high_chan, inputPoints, inRate, ai_range, inputBuffer, ScanOptions.BACKGROUND.EXTTRIGGER)
             inStatus = Status.RUNNING
             while inStatus != inStatus.IDLE:
                 inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
@@ -112,20 +115,23 @@ def qSweep(minFreq, maxFreq, stepFreq):
                     for i in range(inputPoints):
                         inputData.append(inputArray[i])
                     inData.append(inputData)
-                    log.info(inputArray) # DEBUG
-                    log.info(inputData) # DEBUG
+                    log.info(inputArray)
+                    log.info(inputData)
         except ULError as e:
             print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
             log.error('ERROR: ' + '\n' + "A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
             traceback.print_exc()
             input("Press enter to close script...")
             
+        # Activate both scans now that they have been prepped using the trigger
+        ul.a_out(board_num, trig_channel, ao_range, 65500) # Set output to +10 V
+        
         # Slow down mildly to prevent CPU overflow
         outStatus = Status.RUNNING
         while outStatus != outStatus.IDLE:
             sleep(0.1)
             outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
-            log.info(outStatus) # DEBUG
+            log.info(outStatus)
         
     # Success
     print('\n' + 'Frequencies: ' + str(frequencies))
