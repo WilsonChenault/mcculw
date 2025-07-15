@@ -43,10 +43,6 @@ ao_range = ao_info.supported_ranges[0]
 ai_info = deviceInfo.get_ai_info()
 ai_range = ai_info.supported_ranges[0]
 dio_info = deviceInfo.get_dio_info()
-port = next((port for port in dio_info.port_info if port.supports_output), None) # Find port
-if port.is_port_configurable: # Configure port for output
-    ul.d_config_port(board_num, port.type, DigitalIODirection.OUT)
-port_value = 42598
 channel, low_chan, high_chan = 0, 0, 0 # Channel defining for qSweep()
 
 # Defining Sine Wave Generation
@@ -78,6 +74,8 @@ def qSweep(minFreq, maxFreq, stepFreq):
     # Setting trigger for simultaneous activation of scans
     ul.set_trigger(board_num, TrigType.TRIG_HIGH, 0, 36045)
     trig_channel = 1
+    ul.a_out(board_num, trig_channel, ao_range, 0) # Reset trigger to -10 V
+    log.info('Setting AOUT1 to -10V')
     
     # Frequencies that are specified to be tested
     frequencies = []
@@ -86,27 +84,26 @@ def qSweep(minFreq, maxFreq, stepFreq):
         minFreq = minFreq + stepFreq
     
     # Main body loop
-    # Outputs a frequency (numPoints/rate) to the coil. Reads back a single input (resonance).
+    # Outputs a frequency (numPoints/rate) to the coil. Reads back the data sent out.
     inData = [] # Defining measured data to append
     print('Waiting for scan...')
     log.info('Beginning scan...')
     for freq in frequencies:
         # Define rate. This is our way of adjusting the frequency outputted
         rate = freq * 10 # * 10 because 10 points is one cycle
-        inRate = 10000 # Input sample rate. Set value as to not skew data
         inputHold = [] # Input samples data. Hold takes in the buffer, writes to data, and then gets rewritten.
         inputData = []
+        ul.stop_background(board_num, FunctionType.AOFUNCTION)
+        ul.stop_background(board_num, FunctionType.AIFUNCTION)
         ul.a_out(board_num, trig_channel, ao_range, 0) # Reset trigger to -10 V
-        log.info('Setting ' + port.type.name + ' to 0')
-        
         # Reading input. Using the scan feature to create an array for each sample set of data.
         try:
-            ul.a_in_scan(board_num, low_chan, high_chan, inputPoints, inRate, ai_range, inputBuffer, ScanOptions.BACKGROUND | ScanOptions.EXTTRIGGER)
+            ul.a_in_scan(board_num, low_chan, high_chan, inputPoints, rate, ai_range, inputBuffer, ScanOptions.BACKGROUND | ScanOptions.EXTTRIGGER)
             inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
         except ULError as e:
             print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
             log.error('ERROR: ' + '\n' + "A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
-            log.error(traceback.format_ exc())
+            log.error(traceback.format_exc())
             input("Press enter to close script...")
         
         # Activate trigger so in starts as out starts
@@ -116,7 +113,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
         
         # Start out scan
         try:
-            ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND)
+            ul.a_out_scan(board_num, low_chan, high_chan, 1, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND)
             outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
             log.info('Within loop: ' + str(outStatus))
         except ULError as e:
@@ -131,6 +128,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
             sleep(0.1)
             outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
             log.info(outStatus) # DEBUG
+            log.info(inStatus) # DEBUG
             
         # Write recorded input data
         while inStatus != inStatus.IDLE:
@@ -152,7 +150,6 @@ def qSweep(minFreq, maxFreq, stepFreq):
         # Reset trigger
         log.info('Pre-trig (Out): ' + str(outStatus)) # DEBUG
         inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
-        log.info('Setting ' + port.type.name + ' to ' + str(port_value))
         log.info('Post-trig (Out): ' + str(outStatus)) # DEBUG
         
     # Success

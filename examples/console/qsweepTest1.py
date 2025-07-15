@@ -5,7 +5,9 @@ Purpose: First attempt at a QSweep.
 """
 
 from time import sleep
+from time import time
 import traceback
+import numpy as np
 
 from mcculw import ul
 from mcculw.device_info import DaqDeviceInfo
@@ -23,6 +25,7 @@ if not deviceInfo.supports_analog_output:
 print('Active DAQ Device: ' + deviceInfo.product_name + ' (' + deviceInfo.unique_id + ')')
 
 # Device Info
+timesArray = []
 ao_info = deviceInfo.get_ao_info()
 ao_range = ao_info.supported_ranges[0]
 ai_info = deviceInfo.get_ai_info()
@@ -43,6 +46,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
     # Main body loop
     # Creates an output value, sends it through, reads an input, and then continues the loop once and input has been read
     for freq in frequencies:
+        start = time()
         try:
             ul.a_out(board_num, channel, ao_range, freq)
         except ULError as e:
@@ -63,9 +67,17 @@ def qSweep(minFreq, maxFreq, stepFreq):
             print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
             traceback.print_exc()
             input("Press enter to close script...")
+        end = time()
+        holdTime = end - start
+        timesArray.append(holdTime)
+        
     # Success
     print('Test successful! Press enter to close the script.')
+    print(timesArray)
+    print(np.average(timesArray))
+    print(min(timesArray))
+    print(max(timesArray))
     input()
 
 if __name__ == '__main__':
-    qSweep(50000, 70000, 700)
+    qSweep(20000, 30000, 100)

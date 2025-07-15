@@ -52,6 +52,10 @@ if not memhandle:
 
 sleep(1)
 
+# Defining sine wave generation function
+def sin():
+    xData = np.linspace(
+
 # Defining QSweep function
 def qSweep(minFreq, maxFreq, stepFreq):
     # Frequencies that are specified to be tested

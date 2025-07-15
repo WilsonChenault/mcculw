@@ -46,8 +46,7 @@ dio_info = deviceInfo.get_dio_info()
 port = next((port for port in dio_info.port_info if port.supports_output), None) # Find port
 if port.is_port_configurable: # Configure port for output
     ul.d_config_port(board_num, port.type, DigitalIODirection.OUT)
-port_value, bit_num = 0xFF, 0
-bitHigh, bitLow = 1, 0
+port_value = 42598
 channel, low_chan, high_chan = 0, 0, 0 # Channel defining for qSweep()
 
 # Defining Sine Wave Generation
@@ -76,10 +75,6 @@ def qSweep(minFreq, maxFreq, stepFreq):
     for i in range(len(sineOutput)):
         outputArray[i] = sineOutput[i]
     
-    # Setting trigger for simultaneous activation of scans
-    ul.set_trigger(board_num, TrigType.TRIG_HIGH, 0, 36045)
-    trig_channel = 3
-    
     # Frequencies that are specified to be tested
     frequencies = []
     while maxFreq >= minFreq:
@@ -87,54 +82,68 @@ def qSweep(minFreq, maxFreq, stepFreq):
         minFreq = minFreq + stepFreq
     
     # Main body loop
-    # Outputs a frequency (numPoints/rate) to the coil. Reads back the data sent out.
+    # Outputs a frequency (numPoints/rate) to the coil. Reads back a single input (resonance).
     inData = [] # Defining measured data to append
     print('Waiting for scan...')
+    log.info('Beginning scan...')
     for freq in frequencies:
         # Define rate. This is our way of adjusting the frequency outputted
         rate = freq * 10 # * 10 because 10 points is one cycle
         inRate = 10000 # Input sample rate. Set value as to not skew data
         inputHold = [] # Input samples data. Hold takes in the buffer, writes to data, and then gets rewritten.
         inputData = []
-        ul.d_out(board_num, port.type, port_value)
-        ul.d_bit_out(board_num, port.type, bit_num, bitLow) # Set bit to OFF
         log.info('Setting ' + port.type.name + ' to 0')
+        
+        # Reading input. Using the scan feature to create an array for each sample set of data.
         try:
-            ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND | ScanOptions.EXTTRIGGER)
+            ul.a_in_scan(board_num, low_chan, high_chan, inputPoints, inRate, ai_range, inputBuffer, ScanOptions.BACKGROUND)
+            inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
+        except ULError as e:
+            print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
+            log.error('ERROR: ' + '\n' + "A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
+            log.error(traceback.format_ exc())
+            input("Press enter to close script...")
+            
+        # Start out scan
+        try:
+            ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND)
             outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
             log.info('Within loop: ' + str(outStatus))
         except ULError as e:
             print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
             log.error('ERROR: ' + '\n' + "A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
-            traceback.print_exc()
-            input("Press enter to close script...")
-  
-        # Reading input. Using the scan feature to create an array for each sample set of data.
-        try:
-            ul.a_in_scan(board_num, low_chan, high_chan, inputPoints, inRate, ai_range, inputBuffer, ScanOptions.BACKGROUND | ScanOptions.EXTTRIGGER)
-        except ULError as e:
-            print("A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
-            log.error('ERROR: ' + '\n' + "A UL error occurred. Code: " + str(e.errorcode) + " Message: " + e.message)
-            traceback.print_exc()
+            log.error(traceback.format_ exc())
             input("Press enter to close script...")
             
-        # Reset trigger
-        log.info('Pre-trig: ' + str(outStatus))
-        ul.d_bit_out(board_num, port.type, bit_num, bitHigh) # Set output to +10 V
-        print('100')
-        inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
-        print(str(inStatus))
+        # Slow down mildly to prevent CPU overflow
+        outStatus = Status.RUNNING
+        while outStatus != outStatus.IDLE:
+            sleep(0.1)
+            outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
+            log.info(outStatus) # DEBUG
+            
+        # Write recorded input data
         while inStatus != inStatus.IDLE:
             inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
-            if inStatus == inStatus.IDLE:
+            log.info(inStatus) # DEBUG
+        while outStatus != outStatus.IDLE:
+            outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
+        if inStatus == inStatus.IDLE:
+            if outStatus == outStatus.IDLE:
                 ul.win_buf_to_array(inputBuffer, inputArray, 0, 50)
                 for i in range(inputPoints):
                     inputData.append(inputArray[i])
                 inData.append(inputData)
                 log.info(inputArray)
                 log.info(inputData)
+            else:
+                break
+        
+        # Reset trigger
+        log.info('Pre-trig (Out): ' + str(outStatus)) # DEBUG
+        inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
         log.info('Setting ' + port.type.name + ' to ' + str(port_value))
-        log.info('Post-trig: ' + str(outStatus))
+        log.info('Post-trig (Out): ' + str(outStatus)) # DEBUG
         
     # Success
     print('\n' + 'Frequencies: ' + str(frequencies))
