@@ -83,15 +83,15 @@ def fit(xdata, ydata, cycles):
 # Defining QSweep function
 def qSweep(minFreq, maxFreq, stepFreq):
     # Handling memory buffer
-    totalPoints = 46 # Total number of points that get scanned.
-    inputPoints = 46
+    totalPoints = 50 # Total number of points that get scanned.
+    inputPoints = 50
     scanBuffer = ul.win_buf_alloc(totalPoints)
     inputBuffer = ul.win_buf_alloc(inputPoints)
     outputArray = cast(scanBuffer, POINTER(c_ushort))
     inputArray = cast(inputBuffer, POINTER(c_ushort))
     
     # Writing scan data into buffer
-    sineExtend = sineOutput[1::] * (int(totalPoints/len(sineOutput)))
+    sineExtend = sineOutput * (int(totalPoints/len(sineOutput)))
     sineOutput.extend(sineExtend) # Copying the sine output over the course of the buffer
     for i in range(len(sineOutput)):
         outputArray[i] = sineOutput[i]
@@ -100,24 +100,24 @@ def qSweep(minFreq, maxFreq, stepFreq):
     ul.set_trigger(board_num, TrigType.TRIG_HIGH, 0, 36045)
     
     # Frequencies that are specified to be tested
-    log.info('Minimum Frequency: ' + str(minFreq))
-    log.info('Maximum Frequency: ' + str(maxFreq))
-    log.info('Step Frequency: ' + str(stepFreq))
     frequencies = []
     while maxFreq >= minFreq:
         frequencies.append(minFreq)
         minFreq = minFreq + stepFreq
+    log.info(frequencies) # DEBUG
     
     # Main body loop
     # Outputs a frequency (numPoints/rate) to the coil. Reads back the data sent out.
     inData = [] # Defining measured data to append
+    completedFreqs = [] # DEBUG
     print('Waiting for scan...')
     for freq in frequencies:
     
         # Some DEBUG code
         outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
         inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
-        log.info('Frequency: ' + str(freq)) # DEBUG
+        completedFreqs.append(freq) # DEBUG
+        log.info(freq) # DEBUG
         log.info('Loop begin: ' + str(outStatus) + ', ' + str(inStatus))
     
         # Define rate. This is our way of adjusting the frequency outputted
@@ -153,6 +153,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
         for i in range(inputPoints - 1):
             inputHold.append(inputArray[i + 1])
         inData.append(inputHold)
+        log.info(inputHold)
         
         # Slow down mildly to prevent CPU overflow
         outStatus = Status.RUNNING
@@ -167,15 +168,19 @@ def qSweep(minFreq, maxFreq, stepFreq):
             inStatus, _, _ = ul.get_status(board_num, FunctionType.AIFUNCTION)
         log.info('Loop end: ' + str(outStatus) + ', ' + str(inStatus))
     
+    log.info(completedFreqs) # DEBUG
+    
     # Fitting each data set and gathering the amplitude
     numCycles = 5 # currently not very adaptable but will be refined
     xdata = np.linspace(0, numCycles * 2 * np.pi, totalPoints - 1)
+    log.info(xdata) # DEBUG
     paramsList = [] # Defining params list for function fits
     paramsErrorList = [] # DEBUG
     amplList = []
     for i in range(len(inData)):
         #ydata = [inData[i][j]/1000 for j in range(len(inData[i]))] # Shrinks data by 10 ^ 3
         fit(xdata, inData[i], numCycles)
+        log.info(np.average([min(inData[i]), max(inData[i])])) # DEBUG 
         paramsList.append(params)
         amplList.append(params[1])
     
@@ -202,7 +207,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
 if __name__ == '__main__':
     try:
         sine(wavePoints)
-        qSweep(10000, 50000, 100)
+        qSweep(20000, 30000, 200)
     except Exception as e:
         file = open('console.log', 'a')
         file.write(traceback.format_exc())

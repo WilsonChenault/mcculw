@@ -71,6 +71,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
     sineOutput.extend(sineExtend) # Copying the sine output over the course of the buffer
     for i in range(len(sineOutput)):
         outputArray[i] = sineOutput[i]
+    log.info(sineOutput)
     log.info(outputArray)
     log.info(scanBuffer)
     
