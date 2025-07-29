@@ -3,6 +3,8 @@ File: qSweep.py
 
 Purpose: Runs a q-sweep from defined low, high, and step frequencies. Write these in at the bottom of the document, where the function qSweep() is run with its three arguments.
 
+Currently runs on 9 points per cycle (line 63) and builds frequency off sample rate and points (line 134).
+
 Includes a logging function that outputs to an external file named "console.txt". Contains various pieces of information, such as the frequencies run, input data collected, scan status during which run, timings, date, and debug lines such as traceback errors.
 
 This file can be run from the mcculw/examples/console folder, but no where else and I don't exactly have the time or technincal know-how to fix that for now. 
@@ -58,7 +60,7 @@ if port.is_port_configurable: # Configure port for output
 port_value, bit_num = 0xFF, 0
 bitHigh, bitLow = 1, 0
 channel, low_chan, high_chan = 0, 0, 0 # Channel defining for qSweep()
-wavePoints = 10 # Defining for both fit loop and sine function.
+wavePoints = 10 # Defining for both fit loop and sine function. Real points is wavePoints - 1 because the final 0 must be dropped or else you don't get clean cycles of sin(x); you instead get 0, ..., 0, 0, ... because it ends and begins on a 0.
 
 # Defining Sine Wave Generation
 def sine(numPoints):
