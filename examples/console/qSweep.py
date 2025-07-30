@@ -12,6 +12,9 @@ This file can be run from the mcculw/examples/console folder, but no where else 
 Required: numpy, scipy, mcculw, matplotlib
 """
 
+from __future__ import absolute_import, division, print_function
+from builtins import *  # @UnusedWildImport
+
 import traceback
 import logging
 
@@ -27,6 +30,11 @@ from mcculw import ul
 from mcculw.device_info import DaqDeviceInfo
 from mcculw.enums import ScanOptions, FunctionType, Status, TrigType, DigitalIODirection
 from mcculw.ul import ULError
+
+try:
+    from console_examples_util import config_first_detected_device
+except ImportError:
+    from .console_examples_util import config_first_detected_device
 
 # Logging function
 log = logging.getLogger(__name__)
@@ -49,6 +57,8 @@ print('Active DAQ Device: ' + deviceInfo.product_name + ' (' + deviceInfo.unique
 log.info('Active DAQ Device: ' + deviceInfo.product_name + ' (' + deviceInfo.unique_id + ')')
 
 # Device Info
+scanBuffer = None
+inputBuffer = None
 ao_info = deviceInfo.get_ao_info()
 ao_range = ao_info.supported_ranges[0]
 ai_info = deviceInfo.get_ai_info()
@@ -61,6 +71,9 @@ port_value, bit_num = 0xFF, 0
 bitHigh, bitLow = 1, 0
 channel, low_chan, high_chan = 0, 0, 0 # Channel defining for qSweep()
 wavePoints = 10 # Defining for both fit loop and sine function. Real points is wavePoints - 1 because the final 0 must be dropped or else you don't get clean cycles of sin(x); you instead get 0, ..., 0, 0, ... because it ends and begins on a 0.
+
+# Setting output channel to 0
+ul.a_out(board_num, channel, ao_range, 32778)
 
 # Defining Sine Wave Generation
 def sine(numPoints):
@@ -134,7 +147,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
         rate = freq * 9 # * n for n points/cycle
         inputHold = []
         ul.d_out(board_num, port.type, port_value)
-        ul.d_bit_out(board_num, port.type, bit_num, bitLow) # Set bit to OFF
+        ul.d_bit_out(board_num, port.type, bit_num, bitLow) # Set logic output to LOW
         try:
             ul.a_out_scan(board_num, low_chan, high_chan, totalPoints, rate, ao_range, scanBuffer, ScanOptions.BACKGROUND | ScanOptions.EXTTRIGGER)
             outStatus, _, _ = ul.get_status(board_num, FunctionType.AOFUNCTION)
@@ -195,6 +208,14 @@ def qSweep(minFreq, maxFreq, stepFreq):
     plt.scatter(frequencies, amplList)
     plt.show()
     
+    # DEBUG fits
+    xFitted = np.linspace(0, 2 * np.pi, totalPoints * 5)
+    plt.figure()
+    plt.scatter(xdata, inData[0])
+    log.info(paramsList[0])
+    plt.plot(xFitted, curveFit(xFitted, *paramsList[0]))
+    plt.show()
+    
     # Success
     print('\n')
     log.info('\n' + 'Frequencies: ' + str(frequencies))
@@ -207,7 +228,7 @@ def qSweep(minFreq, maxFreq, stepFreq):
 if __name__ == '__main__':
     try:
         sine(wavePoints)
-        qSweep(1000, 55000, 100)
+        qSweep(20000, 55000, 700)
     except Exception as e:
         file = open('console.log', 'a')
         file.write(traceback.format_exc())
